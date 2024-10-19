@@ -1,21 +1,96 @@
 import React, { useState, useRef } from "react";
 import Header from "./Header";
 import { checkValidData } from "../utils/validate";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from "firebase/auth";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { auth } from "../utils/firebase";
+import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { addUser } from "../utils/userSlice";
+
 const Login = () => {
   const [isSignInForm, setIsSignInForm] = useState(true);
-  const [errorMEssage, setrrorMEssage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const name = useRef(null);
   const email = useRef(null);
   const password = useRef(null);
 
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+    password.current.type = showPassword ? "password" : "text"; // Toggles the input type
+  };
+
   const handleButtonCLick = () => {
-    // Validate the Form Data, There is two way to get data from input field, either use stateVariable or useRef
     console.log(email.current.value, password.current.value);
-    const message = checkValidData(name.current.vale, email.current.value, password.current.value);
+    const message = checkValidData(email.current.value, password.current.value);
     console.log(message);
-    setrrorMEssage(message);
-    //Sign / Sign Up
+    setErrorMessage(message);
+    if (message) return;
+
+    if (!isSignInForm) {
+      createUserWithEmailAndPassword(
+        auth,
+        email.current.value,
+        password.current.value
+      )
+        .then((userCredential) => {
+          // Signed up
+          const user = userCredential.user;
+          updateProfile(user, {
+            displayName: name.current.value,
+            photoURL: "https://images.unsplash.com/photo-1546820389-44d77e1f3b31?q=80&w=1964&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+          })
+            .then(() => {
+              // Profile updated!
+              const { uid, email, displayName, photoURL } = auth.currentUser;
+              dispatch(
+                addUser({
+                  uid: uid,
+                  email: email,
+                  displayName: displayName,
+                  photoURL: photoURL,
+                })
+              );
+              navigate("/browse");
+            })
+            .catch((error) => {
+              // An error occurred
+              setErrorMessage(error.message);
+            });
+          console.log(user);
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          console.log(error);
+          setErrorMessage(errorCode + "-" + errorMessage);
+        });
+    } else {
+      signInWithEmailAndPassword(
+        auth,
+        email.current.value,
+        password.current.value
+      )
+        .then((userCredential) => {
+          // Signed in
+          const user = userCredential.user;
+          console.log(user);
+          navigate("/browse");
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          setErrorMessage(errorCode + "-" + errorMessage);
+        });
+    }
   };
 
   const toggleSignInForm = () => {
@@ -54,13 +129,21 @@ const Login = () => {
           placeholder="Email or Phone Number"
           className="p-4 my-4 w-full bg-gray-700"
         />
-        <input
-          type="password"
-          ref={password}
-          placeholder="Password"
-          className="p-4 my-4 w-full bg-gray-700"
-        />
-        <p className="text-red-500 font-bold text-lg py-2">{errorMEssage}</p>
+        <div className="relative w-full">
+          <input
+            type="password"
+            ref={password}
+            placeholder="Password"
+            className="p-4 my-4 w-full bg-gray-700 pr-10"
+          />
+          <span
+            onClick={togglePasswordVisibility}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 cursor-pointer text-white"
+          >
+            {showPassword ? <FaEyeSlash /> : <FaEye />}
+          </span>
+        </div>
+        <p className="text-red-500 font-bold text-lg py-2">{errorMessage}</p>
         <button
           className="p-4 my-6 bg-red-700 w-full rounded-lg"
           onClick={handleButtonCLick}
